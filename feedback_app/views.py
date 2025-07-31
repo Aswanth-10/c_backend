@@ -112,6 +112,22 @@ class FeedbackFormViewSet(viewsets.ModelViewSet):
             'form_id': str(form.id)
         })
 
+class PublicFormsListView(APIView):
+    """Public view for listing all active feedback forms"""
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request):
+        """Get list of all active public forms"""
+        forms = FeedbackForm.objects.filter(
+            is_active=True
+        ).order_by('-created_at')
+        
+        # Filter out expired forms
+        active_forms = [form for form in forms if not form.is_expired]
+        
+        serializer = FeedbackFormSerializer(active_forms, many=True)
+        return Response(serializer.data)
+
 
 class PublicFeedbackFormView(APIView):
     """Public view for accessing feedback forms via shareable links"""
