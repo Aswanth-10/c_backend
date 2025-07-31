@@ -176,32 +176,40 @@ def send_notification_to_group(group_name, notification_type, title, message, da
 
 def send_analytics_update(group_name, form_id, analytics_data):
     """Send analytics update to a specific group"""
-    from channels.layers import get_channel_layer
-    from asgiref.sync import async_to_sync
-    
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        group_name,
-        {
-            'type': 'analytics_update',
-            'form_id': form_id,
-            'analytics': analytics_data
-        }
-    )
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    'type': 'analytics_update',
+                    'form_id': form_id,
+                    'analytics': analytics_data
+                }
+            )
+    except Exception as e:
+        print(f"Failed to send analytics update: {str(e)}")
 
 
 def send_new_response_notification(group_name, form_id, response_id, form_title):
     """Send new response notification to a specific group"""
-    from channels.layers import get_channel_layer
-    from asgiref.sync import async_to_sync
-    
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        group_name,
-        {
-            'type': 'new_response',
-            'form_id': form_id,
-            'response_id': response_id,
-            'form_title': form_title
-        }
-    ) 
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+        
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                group_name,
+                {
+                    'type': 'new_response',
+                    'form_id': form_id,
+                    'response_id': response_id,
+                    'form_title': form_title
+                }
+            )
+    except Exception as e:
+        print(f"Failed to send new response notification: {str(e)}") 

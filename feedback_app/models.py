@@ -115,26 +115,58 @@ class FormAnalytics(models.Model):
     
     def update_analytics(self):
         """Update analytics based on current responses"""
-        responses = self.form.responses.all()
-        self.total_responses = responses.count()
-        
-        if self.total_responses > 0:
-            # Calculate completion rate
-            total_questions = self.form.questions.count()
-            if total_questions > 0:
-                completed_responses = responses.filter(answers__count=total_questions).count()
-                self.completion_rate = (completed_responses / self.total_responses) * 100
+        try:
+            responses = self.form.responses.all()
+            self.total_responses = responses.count()
             
-            # Calculate average rating
-            rating_answers = Answer.objects.filter(
-                response__form=self.form,
-                question__question_type__in=['rating', 'rating_10']
-            )
-            if rating_answers.exists():
-                total_rating = sum(float(ans.answer_text) for ans in rating_answers if ans.answer_text.isdigit())
-                self.average_rating = total_rating / rating_answers.count()
-        
-        self.save()
+            if self.total_responses > 0:
+                # Calculate completion rate - fixed the query
+                total_questions = self.form.questions.count()
+                if total_questions > 0:
+                    # Count responses that have answers for all questions
+                    completed_responses = 0
+                    for response in responses:
+                        if response.answers.count() == total_questions:
+                            completed_responses += 1
+                    self.completion_rate = (completed_responses / self.total_responses) * 100
+                else:
+                    self.completion_rate = 100.0  # If no questions, consider it complete
+                
+                # Calculate average rating - improved error handling
+                rating_answers = Answer.objects.filter(
+                    response__form=self.form,
+                    question__question_type__in=['rating', 'rating_10']
+                )
+                if rating_answers.exists():
+                    valid_ratings = []
+                    for ans in rating_answers:
+                        try:
+                            # More robust numeric validation
+                            rating_value = float(ans.answer_text.strip())
+                            if 0 <= rating_value <= 10:  # Valid rating range
+                                valid_ratings.append(rating_value)
+                        except (ValueError, TypeError):
+                            continue  # Skip invalid ratings
+                    
+                    if valid_ratings:
+                        self.average_rating = sum(valid_ratings) / len(valid_ratings)
+                    else:
+                        self.average_rating = 0.0
+                else:
+                    self.average_rating = 0.0
+            else:
+                self.completion_rate = 0.0
+                self.average_rating = 0.0
+            
+            self.save()
+            
+        except Exception as e:
+            # Log the error and set default values
+            print(f"Error updating analytics for form {self.form.id}: {str(e)}")
+            self.total_responses = 0
+            self.completion_rate = 0.0
+            self.average_rating = 0.0
+            self.save()
 
 
 class Notification(models.Model):
