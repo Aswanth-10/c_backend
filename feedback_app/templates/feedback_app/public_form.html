@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feedback Form</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .form-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin: 2rem auto;
+            max-width: 800px;
+        }
+        .form-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 20px 20px 0 0;
+        }
+        .form-body {
+            padding: 2rem;
+        }
+        .question-card {
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            background: #f8f9fa;
+        }
+        .required {
+            color: #dc3545;
+        }
+        .rating-stars {
+            font-size: 2rem;
+            color: #ffc107;
+        }
+        .rating-stars input {
+            display: none;
+        }
+        .rating-stars label {
+            cursor: pointer;
+        }
+        .rating-stars input:checked ~ label {
+            color: #ffc107;
+        }
+        .rating-stars label:hover,
+        .rating-stars label:hover ~ label {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-container">
+            <!-- Loading State -->
+            <div id="loadingState" class="text-center p-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Loading form...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="errorState" class="text-center p-5" style="display: none;">
+                <div class="alert alert-danger">
+                    <h4>Form Not Found</h4>
+                    <p id="errorMessage">The requested form was not found or you don't have permission to view it.</p>
+                    <a href="/" class="btn btn-primary">Go to Admin Dashboard</a>
+                </div>
+            </div>
+
+            <!-- Form Content -->
+            <div id="formContent" style="display: none;">
+                <div class="form-header">
+                    <h2 id="formTitle">Feedback Form</h2>
+                    <p id="formDescription" class="mb-0">Please provide your feedback below.</p>
+                </div>
+                
+                <div class="form-body">
+                    <form id="feedbackForm">
+                        <div id="questionsContainer"></div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-paper-plane"></i> Submit Feedback
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Success State -->
+            <div id="successState" class="text-center p-5" style="display: none;">
+                <div class="alert alert-success">
+                    <h4>Thank You!</h4>
+                    <p>Your feedback has been submitted successfully.</p>
+                    <a href="/" class="btn btn-primary">Go to Admin Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/js/all.min.js"></script>
+    <script>
+        let formData = null;
+        const formId = window.location.pathname.split('/').pop();
+
+        // Load form data
+        async function loadForm() {
+            try {
+                const response = await fetch(`/api/public/feedback/${formId}/`);
+                
+                if (response.ok) {
+                    formData = await response.json();
+                    displayForm();
+                } else {
+                    const errorData = await response.json();
+                    showError(errorData.error || 'Form not found');
+                }
+            } catch (error) {
+                console.error('Error loading form:', error);
+                showError('Failed to load form. Please try again.');
+            }
+        }
+
+        function displayForm() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('formContent').style.display = 'block';
+            
+            // Set form title and description
+            document.getElementById('formTitle').textContent = formData.title;
+            document.getElementById('formDescription').textContent = formData.description || 'Please provide your feedback below.';
+            
+            // Render questions
+            const questionsContainer = document.getElementById('questionsContainer');
+            questionsContainer.innerHTML = '';
+            
+            formData.questions.forEach((question, index) => {
+                const questionCard = createQuestionCard(question, index);
+                questionsContainer.appendChild(questionCard);
+            });
+        }
+
+        function createQuestionCard(question, index) {
+            const card = document.createElement('div');
+            card.className = 'question-card';
+            
+            const requiredMark = question.is_required ? '<span class="required">*</span>' : '';
+            
+            card.innerHTML = `
+                <h5 class="mb-3">
+                    ${index + 1}. ${question.text} ${requiredMark}
+                </h5>
+                ${createQuestionInput(question)}
+            `;
+            
+            return card;
+        }
+
+        function createQuestionInput(question) {
+            const questionId = `question_${question.id}`;
+            
+            switch (question.question_type) {
+                case 'text':
+                    return `<input type="text" class="form-control" id="${questionId}" name="${questionId}" ${question.is_required ? 'required' : ''}>`;
+                
+                case 'textarea':
+                    return `<textarea class="form-control" id="${questionId}" name="${questionId}" rows="4" ${question.is_required ? 'required' : ''}></textarea>`;
+                
+                case 'email':
+                    return `<input type="email" class="form-control" id="${questionId}" name="${questionId}" ${question.is_required ? 'required' : ''}>`;
+                
+                case 'phone':
+                    return `<input type="tel" class="form-control" id="${questionId}" name="${questionId}" ${question.is_required ? 'required' : ''}>`;
+                
+                case 'radio':
+                    return question.options.map(option => `
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="${questionId}" id="${questionId}_${option}" value="${option}" ${question.is_required ? 'required' : ''}>
+                            <label class="form-check-label" for="${questionId}_${option}">
+                                ${option}
+                            </label>
+                        </div>
+                    `).join('');
+                
+                case 'checkbox':
+                    return question.options.map(option => `
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="${questionId}" id="${questionId}_${option}" value="${option}">
+                            <label class="form-check-label" for="${questionId}_${option}">
+                                ${option}
+                            </label>
+                        </div>
+                    `).join('');
+                
+                case 'rating':
+                    return createRatingInput(questionId, 5, question.is_required);
+                
+                case 'rating_10':
+                    return createRatingInput(questionId, 10, question.is_required);
+                
+                case 'yes_no':
+                    return `
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="${questionId}" id="${questionId}_yes" value="Yes" ${question.is_required ? 'required' : ''}>
+                            <label class="form-check-label" for="${questionId}_yes">Yes</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="${questionId}" id="${questionId}_no" value="No" ${question.is_required ? 'required' : ''}>
+                            <label class="form-check-label" for="${questionId}_no">No</label>
+                        </div>
+                    `;
+                
+                default:
+                    return `<input type="text" class="form-control" id="${questionId}" name="${questionId}" ${question.is_required ? 'required' : ''}>`;
+            }
+        }
+
+        function createRatingInput(questionId, maxRating, required) {
+            let stars = '';
+            for (let i = maxRating; i >= 1; i--) {
+                stars += `
+                    <input type="radio" name="${questionId}" id="${questionId}_${i}" value="${i}" ${required ? 'required' : ''}>
+                    <label for="${questionId}_${i}">★</label>
+                `;
+            }
+            
+            return `<div class="rating-stars">${stars}</div>`;
+        }
+
+        function showError(message) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('errorState').style.display = 'block';
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        function showSuccess() {
+            document.getElementById('formContent').style.display = 'none';
+            document.getElementById('successState').style.display = 'block';
+        }
+
+        // Form submission
+        document.getElementById('feedbackForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            const originalText = submitButton.innerHTML;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+            submitButton.disabled = true;
+            
+            try {
+                // Collect form data
+                const formData = new FormData(e.target);
+                const answers = [];
+                
+                // Convert form data to the expected format
+                for (let [name, value] of formData.entries()) {
+                    const questionId = name.split('_')[1];
+                    answers.push({
+                        question: parseInt(questionId),
+                        answer_text: value
+                    });
+                }
+                
+                // Submit the response
+                const response = await fetch(`/api/public/feedback/${formId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ answers })
+                });
+                
+                if (response.ok) {
+                    showSuccess();
+                } else {
+                    const errorData = await response.json();
+                    alert(errorData.error || 'Failed to submit feedback. Please try again.');
+                }
+            } catch (error) {
+                console.error('Submission error:', error);
+                alert('Failed to submit feedback. Please try again.');
+            } finally {
+                submitButton.innerHTML = originalText;
+                submitButton.disabled = false;
+            }
+        });
+
+        // Load form when page loads
+        document.addEventListener('DOMContentLoaded', loadForm);
+    </script>
+</body>
+</html>

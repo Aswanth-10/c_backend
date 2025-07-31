@@ -58,10 +58,11 @@ class AnswerSerializer(serializers.ModelSerializer):
 class FeedbackResponseSerializer(serializers.ModelSerializer):
     answers = AnswerSerializer(many=True, read_only=True)
     form_title = serializers.CharField(source='form.title', read_only=True)
+    form_type = serializers.CharField(source='form.form_type', read_only=True)
     
     class Meta:
         model = FeedbackResponse
-        fields = ['id', 'form', 'form_title', 'submitted_at', 'answers']
+        fields = ['id', 'form', 'form_title', 'form_type', 'submitted_at', 'answers']
         read_only_fields = ['id', 'submitted_at']
 
 
@@ -125,8 +126,11 @@ class QuestionAnalyticsSerializer(serializers.Serializer):
     question_text = serializers.CharField()
     question_type = serializers.CharField()
     response_count = serializers.IntegerField()
+    response_rate = serializers.FloatField()
     average_rating = serializers.FloatField(allow_null=True)
-    answer_distribution = serializers.DictField()  # For multiple choice questions
+    answer_distribution = serializers.DictField()
+    top_answers = serializers.ListField(required=False)
+    sample_answers = serializers.ListField(required=False)
 
 
 class FormSummarySerializer(serializers.Serializer):
@@ -136,4 +140,20 @@ class FormSummarySerializer(serializers.Serializer):
     total_responses = serializers.IntegerField()
     recent_responses = serializers.IntegerField()
     average_completion_rate = serializers.FloatField()
-    recent_responses_list = serializers.ListField() 
+    form_type_distribution = serializers.ListField()
+    daily_responses = serializers.ListField()
+    recent_responses_list = serializers.ListField()
+    top_forms = serializers.ListField()
+
+
+class EnhancedAnalyticsSerializer(serializers.Serializer):
+    """Serializer for enhanced form analytics"""
+    form_id = serializers.CharField()
+    form_title = serializers.CharField()
+    total_responses = serializers.IntegerField()
+    recent_responses = serializers.IntegerField()
+    daily_responses = serializers.ListField()
+    completion_rate = serializers.FloatField()
+    average_rating = serializers.FloatField()
+    question_analytics = QuestionAnalyticsSerializer(many=True)
+    last_updated = serializers.DateTimeField() 
