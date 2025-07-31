@@ -41,67 +41,87 @@ class FeedbackFormViewSet(viewsets.ModelViewSet):
         return FeedbackFormSerializer
     
     def perform_create(self, serializer):
-        form = serializer.save()
+        form = serializer.save(created_by=self.request.user)
         
         # Create analytics record
-        FormAnalytics.objects.create(form=form)
+        try:
+            analytics, created = FormAnalytics.objects.get_or_create(form=form)
+            if created:
+                analytics.update_analytics()
+        except Exception as e:
+            print(f"Warning: Could not create analytics for form {form.id}: {e}")
         
-        # Send notification
-        send_notification_to_group(
-            f"user_{self.request.user.id}",
-            "form_created",
-            f"Form '{form.title}' created successfully",
-            {"form_id": str(form.id)}
-        )
+        # Send notification (optional, skip if websocket not available)
+        try:
+            send_notification_to_group(
+                f"user_{self.request.user.id}",
+                "form_created",
+                f"Form '{form.title}' created successfully",
+                {"form_id": str(form.id)}
+            )
+        except Exception as e:
+            print(f"Warning: Could not send notification: {e}")
     
     @action(detail=True, methods=['get'])
     def analytics(self, request, pk=None):
         """Get detailed analytics for a specific form"""
-        form = self.get_object()
-        analytics, created = FormAnalytics.objects.get_or_create(form=form)
-        analytics.update_analytics()
-        
-        serializer = FormAnalyticsSerializer(analytics)
-        return Response(serializer.data)
+        try:
+            form = self.get_object()
+            analytics, created = FormAnalytics.objects.get_or_create(form=form)
+            analytics.update_analytics()
+            
+            serializer = FormAnalyticsSerializer(analytics)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': f'Unable to load analytics: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'])
     def question_analytics(self, request, pk=None):
         """Get analytics for individual questions"""
-        form = self.get_object()
-        questions = form.questions.all()
-        
-        question_analytics = []
-        for question in questions:
-            answers = Answer.objects.filter(question=question)
-            response_count = answers.count()
+        try:
+            form = self.get_object()
+            questions = form.questions.all()
             
-            analytics_data = {
-                'question_id': question.id,
-                'question_text': question.text,
-                'question_type': question.question_type,
-                'response_count': response_count,
-                'average_rating': None,
-                'answer_distribution': {}
-            }
-            
-            if question.question_type in ['rating', 'rating_10']:
-                avg_rating = answers.filter(answer_text__regex=r'^\d+$').aggregate(
-                    avg=Avg('answer_text')
-                )['avg']
-                analytics_data['average_rating'] = float(avg_rating) if avg_rating else None
-            
-            elif question.question_type in ['radio', 'checkbox', 'yes_no']:
-                distribution = answers.values('answer_text').annotate(
-                    count=Count('answer_text')
-                ).order_by('-count')
-                analytics_data['answer_distribution'] = {
-                    item['answer_text']: item['count'] for item in distribution
+            question_analytics = []
+            for question in questions:
+                answers = Answer.objects.filter(question=question)
+                response_count = answers.count()
+                
+                analytics_data = {
+                    'question_id': question.id,
+                    'question_text': question.text,
+                    'question_type': question.question_type,
+                    'response_count': response_count,
+                    'average_rating': None,
+                    'answer_distribution': {}
                 }
+                
+                if question.question_type in ['rating', 'rating_10']:
+                    avg_rating = answers.filter(answer_text__regex=r'^\d+$').aggregate(
+                        avg=Avg('answer_text')
+                    )['avg']
+                    analytics_data['average_rating'] = float(avg_rating) if avg_rating else None
+                
+                elif question.question_type in ['radio', 'checkbox', 'yes_no']:
+                    distribution = answers.values('answer_text').annotate(
+                        count=Count('answer_text')
+                    ).order_by('-count')
+                    analytics_data['answer_distribution'] = {
+                        item['answer_text']: item['count'] for item in distribution
+                    }
+                
+                question_analytics.append(analytics_data)
             
-            question_analytics.append(analytics_data)
-        
-        serializer = QuestionAnalyticsSerializer(question_analytics, many=True)
-        return Response(serializer.data)
+            serializer = QuestionAnalyticsSerializer(question_analytics, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': f'Unable to load question analytics: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
     
     @action(detail=True, methods=['get'])
     def share_link(self, request, pk=None):
