@@ -115,6 +115,8 @@ class FormAnalytics(models.Model):
     
     def update_analytics(self):
         """Update analytics based on current responses"""
+        from django.db.models import Count
+        
         responses = self.form.responses.all()
         self.total_responses = responses.count()
         
@@ -122,7 +124,10 @@ class FormAnalytics(models.Model):
             # Calculate completion rate
             total_questions = self.form.questions.count()
             if total_questions > 0:
-                completed_responses = responses.filter(answers__count=total_questions).count()
+                # Count responses that have answers for all questions
+                completed_responses = responses.annotate(
+                    answer_count=Count('answers')
+                ).filter(answer_count=total_questions).count()
                 self.completion_rate = (completed_responses / self.total_responses) * 100
             
             # Calculate average rating
@@ -131,8 +136,9 @@ class FormAnalytics(models.Model):
                 question__question_type__in=['rating', 'rating_10']
             )
             if rating_answers.exists():
-                total_rating = sum(float(ans.answer_text) for ans in rating_answers if ans.answer_text.isdigit())
-                self.average_rating = total_rating / rating_answers.count()
+                valid_ratings = [float(ans.answer_text) for ans in rating_answers if ans.answer_text.isdigit()]
+                if valid_ratings:
+                    self.average_rating = sum(valid_ratings) / len(valid_ratings)
         
         self.save()
 
