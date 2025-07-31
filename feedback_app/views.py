@@ -41,18 +41,26 @@ class FeedbackFormViewSet(viewsets.ModelViewSet):
         return FeedbackFormSerializer
     
     def perform_create(self, serializer):
-        form = serializer.save()
+        form = serializer.save(created_by=self.request.user)
         
         # Create analytics record
-        FormAnalytics.objects.create(form=form)
+        try:
+            analytics, created = FormAnalytics.objects.get_or_create(form=form)
+            if created:
+                analytics.update_analytics()
+        except Exception as e:
+            print(f"Warning: Could not create analytics for form {form.id}: {e}")
         
-        # Send notification
-        send_notification_to_group(
-            f"user_{self.request.user.id}",
-            "form_created",
-            f"Form '{form.title}' created successfully",
-            {"form_id": str(form.id)}
-        )
+        # Send notification (optional, skip if websocket not available)
+        try:
+            send_notification_to_group(
+                f"user_{self.request.user.id}",
+                "form_created",
+                f"Form '{form.title}' created successfully",
+                {"form_id": str(form.id)}
+            )
+        except Exception as e:
+            print(f"Warning: Could not send notification: {e}")
     
     @action(detail=True, methods=['get'])
     def analytics(self, request, pk=None):
