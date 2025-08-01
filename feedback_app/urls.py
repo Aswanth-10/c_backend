@@ -17,7 +17,7 @@ urlpatterns = [
     path('api/', include(router.urls)),
     
     # Dashboard
-    path('api/dashboard/', views.DashboardView.as_view(), name='dashboard'),
+    path('api/dashboard/summary/', views.DashboardView.as_view(), name='dashboard_summary'),
     
     # Public feedback form endpoints
     path('api/public/forms/', views.PublicFormsListView.as_view(), name='public_forms_list'),
